@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Telepon P2P</title>
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 2rem; }
+    h1 { font-size: 1.8rem; }
+    #status { margin-top: 1rem; font-weight: bold; color: green; }
+    a { color: blue; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h1>📞 Telepon P2P</h1>
+  <p id="status">🔄 Meminta akses mikrofon...</p>
+  <audio id="remote-audio" autoplay playsinline></audio>
+
+  <script>
+    const status = document.getElementById("status");
+    const audio = document.getElementById("remote-audio");
+    const params = new URLSearchParams(location.search);
+    const joinId = params.get("join");
+
+    let peer, stream;
+
+    async function init() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        status.textContent = "🎙️ Mikrofon diizinkan, menyiapkan koneksi...";
+
+        const config = {
+          host: "peerjs-server.herokuapp.com",
+          port: 443,
+          secure: true
+        };
+
+        if (joinId) {
+          // Tamu: memanggil host
+          peer = new Peer(undefined, config);
+          peer.on("open", () => {
+            const call = peer.call(joinId, stream);
+            call.on("stream", remote => {
+              audio.srcObject = remote;
+              status.textContent = "✅ Terhubung!";
+            });
+          });
+        } else {
+          // Host: membuat ID dan menunggu panggilan
+          const id = "call-" + Math.random().toString(36).substring(2, 10);
+          peer = new Peer(id, config);
+          peer.on("open", () => {
+            const link = `${location.origin}${location.pathname}?join=${id}`;
+            status.innerHTML = `🟢 Kirim link ini ke temanmu untuk terhubung:<br><a href="${link}" target="_blank">${link}</a>`;
+          });
+
+          peer.on("call", call => {
+            call.answer(stream);
+            call.on("stream", remote => {
+              audio.srcObject = remote;
+              status.textContent = "✅ Terhubung!";
+            });
+          });
+        }
+      } catch (err) {
+        status.textContent = "❌ Gagal mengakses mikrofon: " + err.message;
+        alert("Mohon izinkan akses mikrofon.");
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
